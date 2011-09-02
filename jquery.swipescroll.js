@@ -41,6 +41,11 @@
 		_create : function() {
 			var self = this;
 
+			// if there is no touch support, then no event binding
+			if (!("ontouchstart" in window)) {
+				return;
+			}
+
 			// bind the touchstart event
 			this.element.bind("touchstart.swipescroll", function(e) {
 				self._touchStart(e);
