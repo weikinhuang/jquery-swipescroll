@@ -29,7 +29,7 @@
 			durationThreshold : 250,
 			iPadMomentumDamp : 0.95,
 			iPadMomentumTime : 1200,
-			iPadDurationThreshold : 500,
+			iPadDurationThreshold : 250,
 			eventSupressionThreshold : 10,
 			distanceThreshold : 20,
 			minMomentumDistance : 40,
