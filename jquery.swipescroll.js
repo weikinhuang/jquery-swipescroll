@@ -50,10 +50,15 @@
 			this.element.bind("touchstart.swipescroll", function(e) {
 				self._touchStart(e);
 			});
+
+			// we need to add this to enable gpu acceleration on mobile devices
+			this.element.css("-webkit-transform", "translateZ(0)");
 		},
 		destroy : function() {
 			// just remove all the events attached
 			this.element.unbind(".swipescroll");
+			// remove the transform
+			this.element.css("-webkit-transform", "");
 			// and do whatever else it needs to do
 			$.Widget.prototype.destroy.apply(this);
 		},
