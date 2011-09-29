@@ -80,12 +80,18 @@
 			return this.element.scrollTop();
 		},
 		_scrollBy : function(x, y) {
-			if (this.options.scrollY) {
-				this.element.scrollTop(y + this._getPositionY());
-			}
+			var ox, oy, changed = false;
 			if (this.options.scrollX) {
-				this.element.scrollLeft(x + this._getPositionX());
+				ox = this._getPositionX();
+				this.element.scrollLeft(x + ox);
+				changed = changed || ox != this._getPositionX();
 			}
+			if (this.options.scrollY) {
+				oy = this._getPositionY();
+				this.element.scrollTop(y + oy);
+				changed = changed || oy != this._getPositionY();
+			}
+			return changed;
 		},
 		_scrollTo : function(destX, destY) {
 			var animate = false, opts = {};
@@ -151,11 +157,11 @@
 			this.element.bind("touchmove.swipescroll", function(e) {
 				// execute the touchmove callback
 				self._touchMove(e);
-			}).one("touchend.swipescroll touchcancel.swipescroll", function() {
+			}).one("touchend.swipescroll touchcancel.swipescroll", function(e) {
 				// unbind the events when touch end to save memory
 				self.element.unbind("touchmove.swipescroll touchend.swipescroll touchcancel.swipescroll");
 				// execute the touchend callback
-				self._touchEnd();
+				self._touchEnd(e);
 			});
 		},
 		_touchMove : function(e) {
@@ -167,21 +173,22 @@
 				return;
 			}
 
-			// stop the default scrolling
-			e.preventDefault();
-
 			// scroll by the delta
-			this._scrollBy(this.track.stop[0] - data.pageX, this.track.stop[1] - data.pageY);
+			if (this._scrollBy(this.track.stop[0] - data.pageX, this.track.stop[1] - data.pageY)) {
+				// stop the default scrolling if we scrolled
+				e.preventDefault();
+			}
 
 			// keep track of where we are
 			this.track.stop = [ data.pageX, data.pageY ];
 		},
-		_touchEnd : function() {
+		_touchEnd : function(e) {
 			// calculate the deltas
 			var o = this.options, dx = this.track.start[0] - this.track.stop[0], dy = this.track.start[1] - this.track.stop[1];
 
 			// do kinetic scrolling
 			if (o.momentum && (Math.abs(dx) > o.distanceThreshold || Math.abs(dy) > o.distanceThreshold) && (new Date()).getTime() - this.track.time < o[durationThreshold]) {
+				e.preventDefault();
 				this._momentumScroll(dx, dy);
 			}
 		}
