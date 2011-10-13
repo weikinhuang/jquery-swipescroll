@@ -11,8 +11,16 @@
  *	jquery.ui.widget.js
  */
 (function($) {
+	// Helpers
+	var has3d = "WebKitCSSMatrix" in window && "m11" in new WebKitCSSMatrix(),
+	// the translate handlers
+	trnOpen = "translate" + (has3d ? "3d(" : "("), trnClose = has3d ? ",0)" : ")",
+	// get the vendor prefix for the transform & translate styles
+	vendor = (/webkit/i).test(navigator.appVersion) ? "webkit" : (/firefox/i).test(navigator.userAgent) ? "Moz" : "opera" in window ? "O" : "",
+	// test for transform support
+	hasTransform = vendor + "Transform" in document.documentElement.style,
 	// check if this is a ipad
-	var momentumDamp = "momentumDamp", momentumTime = "momentumTime", durationThreshold = "durationThreshold";
+	momentumDamp = "momentumDamp", momentumTime = "momentumTime", durationThreshold = "durationThreshold";
 	// if is a ipad, use the larger values
 	if (!!navigator.platform.match(/ipad/i)) {
 		momentumDamp = "iPadMomentumDamp";
@@ -34,6 +42,8 @@
 			distanceThreshold : 20,
 			minMomentumDistance : 40,
 			maxMomentumDistance : 2000,
+			overflow : true,
+			overflowTime : 500,
 			scrollX : false,
 			scrollY : true,
 			touchTags : [ "select", "input", "textarea" ]
@@ -53,6 +63,15 @@
 
 			// we need to add this to enable gpu acceleration on mobile devices
 			this.element.css("-webkit-transform", "translateZ(0)");
+
+			// if it supports transform, then apply the overflow scroll styles
+			if (hasTransform) {
+				// Set some default styles
+				this.element[0].style[vendor + "TransitionProperty"] = "-" + vendor.toLowerCase() + "-transform";
+				this.element[0].style[vendor + "TransitionDuration"] = "0";
+				this.element[0].style[vendor + "TransformOrigin"] = "0 0";
+				this.element[0].style[vendor + "TransitionTimingFunction"] = "cubic-bezier(0.33,0.66,0.66,1)";
+			}
 		},
 		destroy : function() {
 			// just remove all the events attached
@@ -79,19 +98,99 @@
 		_getPositionY : function() {
 			return this.element.scrollTop();
 		},
-		_scrollBy : function(x, y) {
-			var ox, oy, changed = false;
-			if (this.options.scrollX) {
-				ox = this._getPositionX();
-				this.element.scrollLeft(x + ox);
-				changed = changed || ox != this._getPositionX();
+		_scrollBy : function(dx, dy) {
+			// the current style
+			var style = getComputedStyle(this.element[0], null),
+			// the original offsets
+			ox, oy,
+			// the new offsets
+			ex, ey,
+			// the transform matrix positions
+			mx, my,
+			// the buffered offsets
+			bx = 0, by = 0,
+			// the max horizontal scroll
+			lx = this.element[0].scrollWidth - (style.width.replace("px", "") * 1),
+			// the max vertical scroll
+			ly = this.element[0].scrollHeight - (style.height.replace("px", "") * 1),
+			// change indicator
+			changed_x = false, changed_y = false, matrix;
+
+			if (hasTransform && this.options.overflow) {
+				// get the current matrix
+				matrix = style[vendor + "Transform"].replace(/[^0-9-.,]/g, "").split(",");
+				mx = (matrix[4] || 0) * 1;
+				my = (matrix[5] || 0) * 1;
+
+				// standard style changing
+				if (this.options.scrollX && dx !== 0) {
+					ox = this._getPositionX();
+					if (dx + ox < 0 || mx > 0) {
+						// if we're going to overflow at the top
+						ex = 0;
+						bx = Math.max(mx - (dx + ox), 0);
+					} else if (dx + ox > lx || mx < 0) {
+						// if we're overflowing at the bottom
+						ex = lx;
+						bx = Math.min(mx - ((dx + ox) - lx), 0);
+					} else {
+						// we're just scrolling
+						ex = Math.min(Math.max(0, dx + ox), lx);
+					}
+
+					if (ox !== ex) {
+						this.element.scrollLeft(ex);
+						changed_x = true;
+					}
+				} else {
+					bx = mx;
+				}
+				if (this.options.scrollY && dy !== 0) {
+					oy = this._getPositionY();
+					if (dy + oy < 0 || my > 0) {
+						// if we're going to overflow at the top
+						ey = 0;
+						by = Math.max(my - (dy + oy), 0);
+					} else if (dy + oy > ly || my < 0) {
+						// if we're overflowing at the bottom
+						ey = ly;
+						by = Math.min(my - ((dy + oy) - ly), 0);
+					} else {
+						// we're just scrolling
+						ey = Math.min(Math.max(0, dy + oy), ly);
+					}
+					if (oy !== ey) {
+						this.element.scrollTop(ey);
+						changed_y = true;
+					}
+				} else {
+					by = my;
+				}
+
+				this.element[0].style[vendor + "TransitionDuration"] = "0";
+				this.element[0].style[vendor + "Transform"] = trnOpen + bx + "px," + by + "px" + trnClose + " scale(1)";
+				return true;
+			} else {
+				// standard style changing
+				if (this.options.scrollX) {
+					ox = this._getPositionX();
+					ex = Math.min(Math.max(0, dx + ox), lx);
+					if (ox !== ex) {
+						this.element.scrollLeft(ex);
+						changed_x = true;
+					}
+				}
+				if (this.options.scrollY) {
+					oy = this._getPositionY();
+					ey = Math.min(Math.max(0, dy + oy), ly);
+					if (oy !== ey) {
+						this.element.scrollTop(ey);
+						changed_y = true;
+					}
+				}
 			}
-			if (this.options.scrollY) {
-				oy = this._getPositionY();
-				this.element.scrollTop(y + oy);
-				changed = changed || oy != this._getPositionY();
-			}
-			return changed;
+
+			return changed_x || changed_y;
 		},
 		_scrollTo : function(destX, destY) {
 			var animate = false, opts = {};
@@ -185,6 +284,12 @@
 		_touchEnd : function(e) {
 			// calculate the deltas
 			var o = this.options, dx = this.track.start[0] - this.track.stop[0], dy = this.track.start[1] - this.track.stop[1];
+
+			// allow it to go back to it's default position if it has changed
+			if (hasTransform && this.options.overflow) {
+				this.element[0].style[vendor + "TransitionDuration"] = this.options.overflowTime + "ms";
+				this.element[0].style[vendor + "Transform"] = trnOpen + "0px,0px" + trnClose;
+			}
 
 			// do kinetic scrolling
 			if (o.momentum && (Math.abs(dx) > o.distanceThreshold || Math.abs(dy) > o.distanceThreshold) && (new Date()).getTime() - this.track.time < o[durationThreshold]) {
