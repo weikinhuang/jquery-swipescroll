@@ -249,8 +249,12 @@
 			this.track = {
 				time : (new Date()).getTime(),
 				start : [ data.pageX, data.pageY ],
-				stop : [ data.pageX, data.pageY ]
+				stop : [ data.pageX, data.pageY ],
+				target : e.target
 			};
+
+			// prevent "fastclick"
+			e.preventDefault();
 
 			// only bind the events if we are scrolling
 			this.element.bind("touchmove.swipescroll", function(e) {
@@ -282,8 +286,12 @@
 			this.track.stop = [ data.pageX, data.pageY ];
 		},
 		_touchEnd : function(e) {
-			// calculate the deltas
-			var o = this.options, dx = this.track.start[0] - this.track.stop[0], dy = this.track.start[1] - this.track.stop[1];
+			// quick reference
+			var o = this.options,
+			// calculate the deltas for x
+			dx = this.track.start[0] - this.track.stop[0],
+			// calculate the deltas for y
+			dy = this.track.start[1] - this.track.stop[1];
 
 			// allow it to go back to it's default position if it has changed
 			if (hasTransform && this.options.overflow) {
@@ -295,6 +303,9 @@
 			if (o.momentum && (Math.abs(dx) > o.distanceThreshold || Math.abs(dy) > o.distanceThreshold) && (new Date()).getTime() - this.track.time < o[durationThreshold]) {
 				e.preventDefault();
 				this._momentumScroll(dx, dy);
+			} else if (Math.abs(dx) <= o.distanceThreshold && Math.abs(dy) <= o.distanceThreshold) {
+				// retrigger for a fastclick event if we didn't move within the threshold
+				$(this.track.target).trigger("click");
 			}
 		}
 	});
